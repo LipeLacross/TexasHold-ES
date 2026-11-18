@@ -1,7 +1,9 @@
 package com.projeto.texasholdes.service;
 
+import com.projeto.texasholdes.dto.response.ApuracaoResultadoResponse;
 import com.projeto.texasholdes.dto.response.OperacaoPartidaResponse;
 import com.projeto.texasholdes.dto.response.PartidaAbertaResponse;
+import com.projeto.texasholdes.dto.response.PontuacaoJogadorResponse;
 import com.projeto.texasholdes.entity.Carta;
 import com.projeto.texasholdes.entity.Jogador;
 import com.projeto.texasholdes.entity.Partida;
@@ -10,10 +12,16 @@ import com.projeto.texasholdes.exception.BusinessException;
 import com.projeto.texasholdes.exception.ResourceNotFoundException;
 import com.projeto.texasholdes.repository.JogadorRepository;
 import com.projeto.texasholdes.repository.PartidaRepository;
+import com.projeto.texasholdes.strategy.AvaliadorMaoStrategy;
+import com.projeto.texasholdes.strategy.RegraPokerStrategy;
+import com.projeto.texasholdes.strategy.ResultadoAvaliacaoMao;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +33,7 @@ public class PartidaService {
     private final PartidaRepository partidaRepository;
     private final JogadorRepository jogadorRepository;
     private final BaralhoService baralhoService;
+    private final RegraPokerStrategy regraPokerStrategyPadrao;
 
     @Transactional
     public Long criarPartida(Long idCriador, Integer maxJogadores) {
@@ -106,6 +115,61 @@ public class PartidaService {
         return OperacaoPartidaResponse.builder()
                 .sucesso(true)
                 .mensagem("Partida iniciada e cartas distribuídas com sucesso.")
+                .build();
+    }
+
+    /**
+     * Contabiliza os pontos finais da rodada e informa quem ganhou via Strategy.
+     * Permite injetar/selecionar dinamicamente a Strategy para testar cada uma das possibilidades de jogo.
+     */
+    @Transactional
+    public ApuracaoResultadoResponse apurarResultado(Long idPartida, AvaliadorMaoStrategy strategyCustomizada) {
+        Partida partida = buscarPartidaOuFalhar(idPartida);
+
+        if (partida.getStatus() == StatusPartida.AGUARDANDO_JOGADORES) {
+            throw new BusinessException("A partida ainda não foi iniciada.");
+        }
+
+        AvaliadorMaoStrategy strategy = (strategyCustomizada != null) ? strategyCustomizada : regraPokerStrategyPadrao;
+        Map<Long, String> cartasJogadores = partida.getCartasJogadores();
+
+        List<PontuacaoJogadorResponse> pontuacoes = new ArrayList<>();
+
+        for (Jogador jogador : partida.getJogadores()) {
+            String cartasStr = cartasJogadores.getOrDefault(jogador.getId(), "");
+            List<Carta> cartas = Arrays.stream(cartasStr.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .map(Carta::parse)
+                    .toList();
+
+            ResultadoAvaliacaoMao avaliacao = strategy.avaliar(cartas);
+
+            pontuacoes.add(PontuacaoJogadorResponse.builder()
+                    .idJogador(jogador.getId())
+                    .nomeJogador(jogador.getNome())
+                    .combinacao(avaliacao.getCombinacao().getDescricao())
+                    .pontuacao(avaliacao.getPontuacaoTotal())
+                    .cartas(cartasStr)
+                    .descricao(avaliacao.getDescricao())
+                    .build());
+        }
+
+        PontuacaoJogadorResponse vencedor = pontuacoes.stream()
+                .max(Comparator.comparingInt(PontuacaoJogadorResponse::getPontuacao))
+                .orElseThrow(() -> new BusinessException("Não há participantes com mãos avaliáveis."));
+
+        partida.setStatus(StatusPartida.FINALIZADA);
+        partidaRepository.save(partida);
+
+        return ApuracaoResultadoResponse.builder()
+                .idPartida(partida.getId())
+                .idVencedor(vencedor.getIdJogador())
+                .nomeVencedor(vencedor.getNomeJogador())
+                .melhorCombinacao(vencedor.getCombinacao())
+                .pontuacaoVencedora(vencedor.getPontuacao())
+                .estrategiaUtilizada(strategy.getClass().getSimpleName())
+                .pontuacoes(pontuacoes)
                 .build();
     }
 
