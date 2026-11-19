@@ -89,3 +89,63 @@ Você pode fornecer o hash do commit ou o link direto no GitHub:
   - `PokerControllerTest`: Testes dos endpoints HTTP integrados à Fachada.
   - `PartidaServiceTest`: Teste da apuração de pontos finais com Strategy.
   - `JogadorServiceTest`, `BaralhoServiceTest`, `TexasholdesApplicationTests`.
+
+---
+
+## 🎮 Roteiro de Demonstração / Execução via API (cURL)
+
+Caso queira demonstrar a execução do jogo puramente via chamadas HTTP (API REST) no terminal ou Postman:
+
+### 1. Iniciar a aplicação Spring Boot
+```powershell
+.\mvnw spring-boot:run
+```
+
+### 2. Cadastrar 2 Jogadores (US01)
+```powershell
+# Jogador 1 (Felipe)
+curl.exe -X POST "http://localhost:8080/poker/cadastro" `
+  -H "Content-Type: application/json" `
+  -d '{\"nome\":\"Felipe\",\"login\":\"felipe\",\"senha\":\"senha123\"}'
+
+# Jogador 2 (Adler)
+curl.exe -X POST "http://localhost:8080/poker/cadastro" `
+  -H "Content-Type: application/json" `
+  -d '{\"nome\":\"Adler\",\"login\":\"adler\",\"senha\":\"senha123\"}'
+```
+*Retorno HTTP 201 com os IDs gerados (ex: `id: 1` e `id: 2`).*
+
+### 3. Criar uma Mesa / Partida
+```powershell
+curl.exe -X POST "http://localhost:8080/poker/criarPartida?idCriador=1&maxJogadores=8"
+```
+*Retorno HTTP 201: `{"idPartida": 1}`.*
+
+### 4. Consultar Mesas Abertas (US12)
+```powershell
+curl.exe -X GET "http://localhost:8080/poker/partidasAbertas"
+```
+*Retorna a lista de partidas com status `CRIADA` e vagas disponíveis.*
+
+### 5. Jogador 2 Entrar na Mesa (US09)
+```powershell
+curl.exe -X POST "http://localhost:8080/poker/1/entrar?idJogador=2"
+```
+*Debita o cacife inicial de 20 fichas e senta o jogador na mesa.*
+
+### 6. Iniciar Partida e Distribuir Cartas (US10 & US13)
+```powershell
+curl.exe -X POST "http://localhost:8080/poker/1/iniciar?idJogadorResponsavel=1"
+```
+*Embaralha, distribui 2 cartas para cada jogador e 5 cartas na mesa.*
+
+### 7. Apurar Vencedor e Contabilizar Pontos via Strategy!
+```powershell
+curl.exe -X POST "http://localhost:8080/poker/1/apurar"
+```
+
+> **Dica para o professor:** É possível testar cada possibilidade passando o parâmetro `?estrategia=` (ex: `PARES`, `FLUSH`, etc.):
+> ```powershell
+> curl.exe -X POST "http://localhost:8080/poker/1/apurar?estrategia=PARES"
+> ```
+
