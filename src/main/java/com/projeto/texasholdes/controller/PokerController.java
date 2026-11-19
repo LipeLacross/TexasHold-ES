@@ -1,11 +1,11 @@
 package com.projeto.texasholdes.controller;
 
 import com.projeto.texasholdes.dto.request.CadastroJogadorRequest;
+import com.projeto.texasholdes.dto.response.ApuracaoResultadoResponse;
 import com.projeto.texasholdes.dto.response.CadastroJogadorResponse;
 import com.projeto.texasholdes.dto.response.OperacaoPartidaResponse;
 import com.projeto.texasholdes.dto.response.PartidaAbertaResponse;
-import com.projeto.texasholdes.service.JogadorService;
-import com.projeto.texasholdes.service.PartidaService;
+import com.projeto.texasholdes.facade.PokerFacade;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,33 +19,38 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
+/**
+ * Controller de Apresentação REST.
+ * Conforme exigido no Padrão FACHADA (Facade), todo o subsistema de domínio
+ * é acessado exclusivamente através da interface PokerFacade.
+ */
 @RestController
 @RequestMapping("/poker")
 @RequiredArgsConstructor
 public class PokerController {
 
-    private final JogadorService jogadorService;
-    private final PartidaService partidaService;
+    private final PokerFacade pokerFacade;
 
     @PostMapping("/cadastro")
     public ResponseEntity<CadastroJogadorResponse> cadastrar(@Valid @RequestBody CadastroJogadorRequest request) {
-        CadastroJogadorResponse response = jogadorService.cadastrar(request);
+        CadastroJogadorResponse response = pokerFacade.cadastrarJogador(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PostMapping("/criarPartida")
-    public ResponseEntity<java.util.Map<String, Object>> criarPartida(
+    public ResponseEntity<Map<String, Object>> criarPartida(
             @RequestParam Long idCriador,
             @RequestParam(required = false, defaultValue = "8") Integer maxJogadores
     ) {
-        Long idPartida = partidaService.criarPartida(idCriador, maxJogadores);
-        return ResponseEntity.status(HttpStatus.CREATED).body(java.util.Map.of("idPartida", idPartida));
+        Long idPartida = pokerFacade.criarPartida(idCriador, maxJogadores);
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("idPartida", idPartida));
     }
 
     @GetMapping("/partidasAbertas")
     public ResponseEntity<List<PartidaAbertaResponse>> listarPartidasAbertas() {
-        List<PartidaAbertaResponse> response = partidaService.listarPartidasAbertas();
+        List<PartidaAbertaResponse> response = pokerFacade.listarPartidasAbertas();
         return ResponseEntity.ok(response);
     }
 
@@ -54,7 +59,7 @@ public class PokerController {
             @PathVariable Long idPartida,
             @RequestParam Long idJogador
     ) {
-        OperacaoPartidaResponse response = partidaService.entrarNaPartida(idPartida, idJogador);
+        OperacaoPartidaResponse response = pokerFacade.entrarNaPartida(idPartida, idJogador);
         return ResponseEntity.ok(response);
     }
 
@@ -63,7 +68,20 @@ public class PokerController {
             @PathVariable Long idPartida,
             @RequestParam(required = false) Long idJogadorResponsavel
     ) {
-        OperacaoPartidaResponse response = partidaService.iniciarPartida(idPartida, idJogadorResponsavel);
+        OperacaoPartidaResponse response = pokerFacade.iniciarPartida(idPartida, idJogadorResponsavel);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Endpoint para contabilizar pontos finais da rodada e informar quem ganhou via Strategy.
+     * Permite passar o parâmetro opcional 'estrategia' para testar cada uma das possibilidades de jogo.
+     */
+    @PostMapping("/{idPartida}/apurar")
+    public ResponseEntity<ApuracaoResultadoResponse> apurarResultado(
+            @PathVariable Long idPartida,
+            @RequestParam(required = false) String estrategia
+    ) {
+        ApuracaoResultadoResponse response = pokerFacade.apurarResultado(idPartida, estrategia);
         return ResponseEntity.ok(response);
     }
 }

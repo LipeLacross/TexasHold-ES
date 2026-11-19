@@ -2,7 +2,7 @@
 
 ## 📁 Project Structure
 
-The project follows a layered architecture (Controller-Service-Repository-Entity) powered by Spring Boot and Java 21, adhering to Clean Code, SOLID, and DRY principles.
+The project follows a layered architecture (Controller -> Facade -> Service -> Repository -> Entity) powered by Spring Boot and Java 21, adhering to Clean Code, SOLID, DRY, and GoF Design Patterns (**Facade** and **Strategy**).
 
 ```
 TexasHold-ES/
@@ -21,18 +21,24 @@ TexasHold-ES/
 │   │   │   │   ├── request/
 │   │   │   │   │   └── CadastroJogadorRequest.java
 │   │   │   │   └── response/
+│   │   │   │       ├── ApuracaoResultadoResponse.java
 │   │   │   │       ├── CadastroJogadorResponse.java
 │   │   │   │       ├── OperacaoPartidaResponse.java
-│   │   │   │       └── PartidaAbertaResponse.java
+│   │   │   │       ├── PartidaAbertaResponse.java
+│   │   │   │       └── PontuacaoJogadorResponse.java
 │   │   │   ├── entity/
 │   │   │   │   ├── Carta.java
 │   │   │   │   ├── Jogador.java
 │   │   │   │   ├── Partida.java
-│   │   │   │   └── StatusPartida.java
+│   │   │   │   ├── StatusPartida.java
+│   │   │   │   └── TipoCombinacao.java
 │   │   │   ├── exception/
 │   │   │   │   ├── BusinessException.java
 │   │   │   │   ├── GlobalExceptionHandler.java
 │   │   │   │   └── ResourceNotFoundException.java
+│   │   │   ├── facade/
+│   │   │   │   ├── PokerFacade.java
+│   │   │   │   └── PokerFacadeImpl.java
 │   │   │   ├── repository/
 │   │   │   │   ├── JogadorRepository.java
 │   │   │   │   └── PartidaRepository.java
@@ -40,6 +46,14 @@ TexasHold-ES/
 │   │   │   │   ├── BaralhoService.java
 │   │   │   │   ├── JogadorService.java
 │   │   │   │   └── PartidaService.java
+│   │   │   ├── strategy/
+│   │   │   │   ├── AgrupamentosStrategy.java
+│   │   │   │   ├── AvaliadorMaoStrategy.java
+│   │   │   │   ├── CartaAltaStrategy.java
+│   │   │   │   ├── ParesStrategy.java
+│   │   │   │   ├── RegraPokerStrategy.java
+│   │   │   │   ├── ResultadoAvaliacaoMao.java
+│   │   │   │   └── SequenciaEFlushStrategy.java
 │   │   │   └── TexasholdesApplication.java
 │   │   └── resources/
 │   │       └── application.properties
@@ -47,10 +61,14 @@ TexasHold-ES/
 │       ├── java/com/projeto/texasholdes/
 │       │   ├── controller/
 │       │   │   └── PokerControllerTest.java
+│       │   ├── facade/
+│       │   │   └── PokerFacadeTest.java
 │       │   ├── service/
 │       │   │   ├── BaralhoServiceTest.java
 │       │   │   ├── JogadorServiceTest.java
 │       │   │   └── PartidaServiceTest.java
+│       │   ├── strategy/
+│       │   │   └── StrategyPokerTest.java
 │       │   └── TexasholdesApplicationTests.java
 │       └── resources/
 │           └── application.properties
@@ -61,57 +79,61 @@ TexasHold-ES/
 ```
 
 ### Directory Roles:
-- **`controller/`**: Thin presentation layer exposing REST endpoints, validating input contracts, and handling HTTP statuses.
-- **`dto/`**: Data Transfer Objects (Requests & Responses) separating internal entities from public API schemas.
-- **`service/`**: Core business domain logic, validation orchestrations, card deck generation, and shuffling algorithms.
-- **`entity/`**: JPA persistence entities and domain value objects (`Jogador`, `Partida`, `Carta`, `StatusPartida`).
-- **`repository/`**: Spring Data JPA abstraction layer for database querying.
-- **`exception/`**: Centralized exception handling returning standardized error responses with HTTP status codes.
-- **`config/`**: Security settings, bean definitions, and password hashing (`BCryptPasswordEncoder`).
+- **`controller/`**: Thin REST presentation layer delegating requests exclusively through the **PokerFacade**.
+- **`facade/`**: **Facade (GoF)** design pattern interface and implementation encapsulating the complexities of players, matches, decks, and evaluation subsystems.
+- **`strategy/`**: **Strategy (GoF)** design pattern implementation for hand ranking, card evaluation, and dynamic winner determination.
+- **`dto/`**: Data Transfer Objects (Requests & Responses) decoupling internal persistence models from API contracts.
+- **`service/`**: Core domain logic, validation orchestrations, and match lifecycle management.
+- **`entity/`**: JPA persistence entities and domain value objects (`Jogador`, `Partida`, `Carta`, `StatusPartida`, `TipoCombinacao`).
+- **`repository/`**: Spring Data JPA abstraction layer for database persistence.
+- **`exception/`**: Centralized exception handling returning standardized error responses.
+- **`config/`**: Security configuration, bean definitions, and password hashing (`BCryptPasswordEncoder`).
 - **`test/`**: Unit and integration test suites covering happy and edge cases with H2 in-memory isolation and Mockito.
 
 ---
 
-## 🎯 Architecture Principles
+## 🎯 Architecture Principles & Design Patterns
 
-1. **Single Responsibility Principle (SRP):** Controllers only route requests, Services solely execute business operations, and Repositories handle persistence.
-2. **Layered Separation & Inversion of Control (IoC):** Dependencies are injected through interfaces and abstractions using Spring `@RequiredArgsConstructor` constructor injection.
-3. **Decoupled Contracts via DTOs:** Entities are never directly exposed to API consumers, avoiding over-posting vulnerabilities and serialization loops.
-4. **Resilient Security:** Sensitive user passwords are encrypted using one-way cryptographic hashing (BCrypt) before database writes.
-5. **Environment Isolation:** Zero-config automated testing via embedded H2 database (`src/test/resources`), while development and production connect to remote PostgreSQL instances with SSL enforcement.
+1. **Padrão Fachada (Facade - GoF):**
+   - Centraliza o ponto de entrada para o subsistema de domínio (`PokerFacade`). O `PokerController` interage unicamente com a Fachada, desacoplando completamente a camada web da orquestração interna entre `JogadorService`, `PartidaService`, `BaralhoService` e avaliadores.
+2. **Padrão Strategy (Strategy - GoF):**
+   - A contabilização dos pontos finais da rodada e a determinação do jogador vencedor é parametrizável via a interface `AvaliadorMaoStrategy`.
+   - Permite testar cada possibilidade de jogo de forma modular e extensível:
+     - `RegraPokerStrategy` (Avaliação padrão de todas as regras oficiais de Poker)
+     - `CartaAltaStrategy` (Estratégia focada em Carta Alta)
+     - `ParesStrategy` (Estratégia para Um Par e Dois Pares)
+     - `AgrupamentosStrategy` (Estratégia para Trinca, Full House e Quadra)
+     - `SequenciaEFlushStrategy` (Estratégia para Straight, Flush, Straight Flush e Royal Flush)
+3. **Single Responsibility Principle (SRP):** Cada classe possui uma única razão para mudar.
+4. **Resilient Security:** Hashing irreversível de senhas com BCrypt antes da escrita no banco.
+5. **Environment Isolation:** Testes unitários e de integração 100% isolados com H2 em memória, sem depender da conectividade de rede externa.
 
 ---
 
 ## 📝 Conventions
 
 - **File & Class Naming:**
-  - Classes and Interfaces: `PascalCase` (e.g., `PartidaService`, `JogadorRepository`).
-  - Methods and Variables: `camelCase` (e.g., `listarPartidasAbertas`, `idPartida`).
-  - Packages: lowercase, single words (e.g., `com.projeto.texasholdes.controller`).
-  - Database Tables: lowercase, plural (e.g., `jogadores`, `partidas`).
+  - Classes and Interfaces: `PascalCase` (e.g., `PokerFacade`, `AvaliadorMaoStrategy`).
+  - Methods and Variables: `camelCase` (e.g., `apurarResultado`, `idPartida`).
+  - Packages: lowercase, single words (e.g., `com.projeto.texasholdes.strategy`).
 - **RESTful Endpoints:**
-  - Resources named in clear context (e.g., `/poker/cadastro`, `/poker/{idPartida}/entrar`).
-  - Explicit HTTP verbs (`POST` for mutations, `GET` for retrieval).
-- **Code Standards:** Clean Code, SOLID, DRY, and KISS guidelines. Files strictly constrained under 200–300 lines for high readability.
+  - `POST /poker/cadastro` (US01)
+  - `POST /poker/criarPartida`
+  - `GET /poker/partidasAbertas` (US09)
+  - `POST /poker/{idPartida}/entrar` (US10)
+  - `POST /poker/{idPartida}/iniciar` (US12 e US13)
+  - `POST /poker/{idPartida}/apurar` (Strategy de contabilização e apuração de vencedor)
 
 ---
 
 ## 🛠️ Maintenance and Expansion
 
 ### Maintenance:
-- **Dependency Updates:** Run `./mvnw versions:display-dependency-updates` periodically to monitor Spring Boot and plugin versions.
 - **Continuous Quality:** Keep all unit and integration tests green by executing `./mvnw test` before every commit.
-- **Database Schema Migrations:** Managed through Hibernate `ddl-auto=update` in development or dedicated Flyway/Liquibase scripts in high-availability environments.
-
-### Adding New Features:
-1. Define entities and relationships in `entity/` and write corresponding interfaces in `repository/`.
-2. Create DTO request/response schemas with Bean Validation in `dto/`.
-3. Implement business logic inside a focused service under `service/`.
-4. Expose the endpoint in `PokerController` or create a new dedicated controller in `controller/`.
-5. Add unit and integration tests in `src/test/` covering both happy path and edge constraints.
+- **Adding New Evaluation Strategies:** Implement the `AvaliadorMaoStrategy` interface and register it inside `PokerFacadeImpl`.
 
 ---
 
-**Última atualização**: 15/10/2026  
+**Última atualização**: 18/11/2026  
 **Versão do projeto**: 0.0.1-SNAPSHOT  
 **Manutenedor**: Felipe Moreira

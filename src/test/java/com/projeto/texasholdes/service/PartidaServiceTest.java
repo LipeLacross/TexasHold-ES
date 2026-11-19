@@ -1,5 +1,6 @@
 package com.projeto.texasholdes.service;
 
+import com.projeto.texasholdes.dto.response.ApuracaoResultadoResponse;
 import com.projeto.texasholdes.dto.response.OperacaoPartidaResponse;
 import com.projeto.texasholdes.dto.response.PartidaAbertaResponse;
 import com.projeto.texasholdes.entity.Carta;
@@ -9,12 +10,17 @@ import com.projeto.texasholdes.entity.StatusPartida;
 import com.projeto.texasholdes.exception.BusinessException;
 import com.projeto.texasholdes.repository.JogadorRepository;
 import com.projeto.texasholdes.repository.PartidaRepository;
+import com.projeto.texasholdes.strategy.AvaliadorMaoStrategy;
+import com.projeto.texasholdes.strategy.CartaAltaStrategy;
+import com.projeto.texasholdes.strategy.ParesStrategy;
+import com.projeto.texasholdes.strategy.RegraPokerStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
@@ -40,6 +46,9 @@ class PartidaServiceTest {
 
     @Mock
     private BaralhoService baralhoService;
+
+    @Spy
+    private RegraPokerStrategy regraPokerStrategyPadrao = new RegraPokerStrategy();
 
     @InjectMocks
     private PartidaService partidaService;
@@ -148,5 +157,25 @@ class PartidaServiceTest {
 
         BusinessException ex = assertThrows(BusinessException.class, () -> partidaService.iniciarPartida(10L, 1L));
         assertEquals("Não há jogadores suficientes para iniciar o jogo. Mínimo de 2 participantes.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Strategy: Deve apurar resultado da rodada e declarar vencedor com maior pontuação")
+    void deveApurarResultadoEVencedorComStrategy() {
+        partida.getJogadores().add(jogador2);
+        partida.setStatus(StatusPartida.EM_ANDAMENTO);
+        partida.getCartasJogadores().put(1L, "Rei de Copas, Rei de Espadas"); // Um par
+        partida.getCartasJogadores().put(2L, "2 de Ouros, 5 de Paus"); // Carta alta
+
+        when(partidaRepository.findById(10L)).thenReturn(Optional.of(partida));
+
+        ApuracaoResultadoResponse resultado = partidaService.apurarResultado(10L, new ParesStrategy());
+
+        assertNotNull(resultado);
+        assertEquals(1L, resultado.getIdVencedor());
+        assertEquals("Host", resultado.getNomeVencedor());
+        assertEquals("Um Par", resultado.getMelhorCombinacao());
+        assertEquals(StatusPartida.FINALIZADA, partida.getStatus());
+        verify(partidaRepository).save(partida);
     }
 }

@@ -3,17 +3,19 @@
 
 # ♠️ TexasHold-ES – Texas Hold'em Poker API
 
-RESTful API developed in **Java 21** and **Spring Boot** for managing Texas Hold'em poker matches, covering secure player registration, open table discovery, player seat joining, game initialization with rule enforcement, and random official card deck dealing.
+RESTful API developed in **Java 21** and **Spring Boot** for managing Texas Hold'em poker matches, incorporating **GoF Design Patterns (Facade and Strategy)**, Clean Code, and SOLID principles.
 
 ---
 
 ## 🔨 Project Features
 
-- **US01 – Player Registration (`POST /poker/cadastro`):** Visitor sign-up with bean validation, unique email constraint, and BCrypt one-way password hashing.
-- **US09 – Open Tables Consultation (`GET /poker/partidasAbertas`):** Retrieve available tables open for seating, displaying current player count and maximum capacity.
-- **US10 – Joining a Match (`POST /poker/{idPartida}/entrar`):** Validations for joining a table (capacity limits, table open status, duplicate player prevention).
-- **US12 – Starting a Match (`POST /poker/{idPartida}/iniciar`):** Validation of creator/host authorization and minimum requirement of at least 2 seated players.
+- **US01 – Player Registration (`POST /poker/cadastro`):** Visitor sign-up with bean validation, unique email constraint, and BCrypt password hashing.
+- **US09 – Open Tables Discovery (`GET /poker/partidasAbertas`):** Retrieve available tables open for seating, displaying current player count and maximum capacity.
+- **US10 – Joining a Match (`POST /poker/:idPartida/entrar`):** Validations for joining a table (capacity limits, table open status, duplicate player prevention).
+- **US12 – Starting a Match (`POST /poker/:idPartida/iniciar`):** Validation of creator/host authorization and minimum requirement of at least 2 seated players.
 - **US13 – Card Distribution:** Generation of an official 52-card deck, cryptographic card shuffling with `SecureRandom`, and automatic dealing of 2 private hole cards per player upon match start.
+- **Strategy Pattern – Round Scoring & Winner Determination (`POST /poker/:idPartida/apurar`):** Dynamic hand evaluation and winner election across all possible poker combinations.
+- **Facade Pattern:** Unified access interface to the domain subsystem via `PokerFacade`.
 
 ---
 
@@ -27,18 +29,20 @@ RESTful API developed in **Java 21** and **Spring Boot** for managing Texas Hold
 
 ---
 
-## ✔️ Techniques and Technologies Used
+## ✔️ Techniques, Patterns and Technologies
 
 - **Java 21 LTS** (Eclipse Temurin)
 - **Spring Boot 4.1.x**
   - **Spring Web** (RESTful Controllers)
   - **Spring Data JPA** (Relational ORM & Repositories)
   - **Spring Security** (BCrypt Password Encoder)
-  - **Spring Validation** (Bean Validation / Hibernate Validator)
-- **PostgreSQL 18** (Production database hosted via Coolify with active TLS/SSL)
+  - **Spring Validation** (Bean Validation)
+- **GoF Design Patterns:**
+  - **Facade:** `PokerFacade` encapsulates players, matches, decks, and evaluation subsystems.
+  - **Strategy:** `AvaliadorMaoStrategy` (`RegraPokerStrategy`, `CartaAltaStrategy`, `ParesStrategy`, `AgrupamentosStrategy`, `SequenciaEFlushStrategy`) for scoring every poker hand scenario.
+- **PostgreSQL 18** (Production database hosted via Coolify with SSL)
 - **H2 Database** (Isolated in-memory database for testing)
-- **Lombok** (Boilerplate code reduction)
-- **JUnit 5 & Mockito** (Unit tests and integration test suites with MockMvc)
+- **JUnit 5 & Mockito** (32 unit and integration tests)
 - **Maven** (Dependency and build management)
 
 ---
@@ -47,19 +51,27 @@ RESTful API developed in **Java 21** and **Spring Boot** for managing Texas Hold
 
 ```mermaid
 flowchart TD
-    Player(["Visitor / Player"]) -->|"POST /poker/cadastro"| API["TexasHold-ES API"]
-    API -->|"Hash Password & Save"| DB[("PostgreSQL 18 SSL")]
+    Player(["Visitor / Player"]) -->|"POST /poker/cadastro"| Controller["PokerController"]
+    Controller -->|"Calls Facade Method"| Facade["PokerFacade (Facade)"]
     
-    Player -->|"GET /poker/partidasAbertas"| API
-    API -->|"Fetch Status: WAITING"| DB
+    Facade -->|"cadastrarJogador()"| JogadorSvc["JogadorService"]
+    JogadorSvc -->|"Hash Password & Save"| DB[("PostgreSQL 18 SSL")]
     
-    Player -->|"POST /poker/:idPartida/entrar"| API
-    API -->|"Validate Capacity & Player"| DB
+    Player -->|"GET /poker/partidasAbertas"| Controller
+    Controller --> Facade
+    Facade -->|"listarPartidasAbertas()"| PartidaSvc["PartidaService"]
+    PartidaSvc --> DB
     
-    Host(["Host / Table Creator"]) -->|"POST /poker/:idPartida/iniciar"| API
-    API -->|"Validate Host & Min. 2 Players"| Rules["Poker Rules Engine"]
-    Rules -->|"BaralhoService 52 Cards + SecureRandom"| Cards["Deal 2 Cards per Player"]
-    Cards -->|"Update Status: IN_PROGRESS"| DB
+    Host(["Host / Table Creator"]) -->|"POST /poker/:idPartida/iniciar"| Controller
+    Controller --> Facade
+    Facade -->|"iniciarPartida()"| PartidaSvc
+    PartidaSvc -->|"BaralhoService 52 Cards + SecureRandom"| Cards["Deal 2 Cards per Player"]
+    
+    Player -->|"POST /poker/:idPartida/apurar"| Controller
+    Controller --> Facade
+    Facade -->|"apurarResultado(Strategy)"| PartidaSvc
+    PartidaSvc -->|"Executes Strategy Algorithm"| Strategy["AvaliadorMaoStrategy"]
+    Strategy -->|"Calculates Points & Determines Winner"| Winner(["Winning Player & Score"])
 ```
 
 ---
@@ -67,17 +79,16 @@ flowchart TD
 ## 📁 Project Structure
 
 - **`src/main/java/com/projeto/texasholdes/`**
-  - **`controller/`**: RESTful API endpoints.
+  - **`controller/`**: RESTful API endpoints (interacting solely with `PokerFacade`).
+  - **`facade/`**: `PokerFacade` interface and `PokerFacadeImpl` implementation.
+  - **`strategy/`**: `AvaliadorMaoStrategy` interface and evaluation algorithms.
   - **`service/`**: Domain services, card deck management, match orchestration.
   - **`repository/`**: Spring Data JPA repository layer.
-  - **`entity/`**: Database entities (`Jogador`, `Partida`, etc.).
+  - **`entity/`**: Database entities (`Jogador`, `Partida`, `Carta`, `TipoCombinacao`).
   - **`dto/`**: Request and response transfer models decoupled from persistence.
   - **`exception/`**: Global exception handler returning standardized error JSONs.
   - **`config/`**: Security configuration and application beans.
-- **`src/main/resources/`**
-  - `application.properties`: Active configuration targeting PostgreSQL with SSL.
-- **`src/test/`**
-  - Automated unit and integration test suites using H2.
+- **`src/test/`**: Automated suite containing 32 tests using H2.
 - **`DATABASE.md`**: Infrastructure guide and connection strings.
 - **`ARCHITECTURE.md`**: Technical architecture specification.
 
@@ -86,16 +97,9 @@ flowchart TD
 ## 🛠️ How to Run the Project
 
 ### Prerequisites:
-- **Java 21 (JDK)** installed (check with `java -version`).
-- Internet access for downloading Maven dependencies.
+- **Java 21 (JDK)** installed (`java -version`).
 
-### 1. Clone the Repository:
-```bash
-git clone <REPOSITORY_URL>
-cd TexasHold-ES
-```
-
-### 2. Run the Automated Tests:
+### 1. Run the Automated Tests:
 ```bash
 # Windows
 .\mvnw test
@@ -104,7 +108,7 @@ cd TexasHold-ES
 ./mvnw test
 ```
 
-### 3. Start the Application:
+### 2. Start the Application:
 ```bash
 # Windows
 .\mvnw spring-boot:run
@@ -114,24 +118,3 @@ cd TexasHold-ES
 ```
 
 The API will be available at: `http://localhost:8080`
-
----
-
-## 🌐 Deployment
-
-The database is live and fully accessible:
-- **Host / Domain:** `painel.lacrosstech.com.br`
-- **Port:** `15432` (Coolify TCP Proxy)
-- **SSL:** Enforced (`sslmode=require`)
-
-For production deployment in a Docker container:
-```bash
-# Package the compiled JAR
-./mvnw clean package -DskipTests
-
-# Run container with environment variables
-java -jar target/texasholdes-0.0.1-SNAPSHOT.jar \
-  --DB_URL=jdbc:postgresql://painel.lacrosstech.com.br:15432/postgres?sslmode=require \
-  --DB_USERNAME=postgres \
-  --DB_PASSWORD=YOUR_PASSWORD
-```
