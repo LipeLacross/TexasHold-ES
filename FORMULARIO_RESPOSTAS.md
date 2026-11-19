@@ -15,15 +15,13 @@ felipe.rios@ufrpe.br
 
 ### 2. Equipe:
 ```text
-TexasHold-ES
+TexasHold-ES (Felipe Moreira Rios, Isaac Adler)
 ```
-*(ou o nome específico da sua equipe/integrantes: Felipe Moreira, Isaac Adler, etc.)*
 
 ### 3. Link para o repositório no GitHub (Público):
 ```text
 https://github.com/LipeLacross/TexasHold-ES
 ```
-*(ou se for o fork upstream do Isaac: `https://github.com/isaacadler/TexasHold-ES`)*
 
 ---
 
@@ -31,7 +29,6 @@ https://github.com/LipeLacross/TexasHold-ES
 ```text
 Contabilização de pontos finais da rodada e apuração do jogador vencedor (Showdown / Fim de Partida)
 ```
-*(Nota: Também cobre US12/US13 na inicialização e distribuição via Fachada)*
 
 ---
 
@@ -40,7 +37,7 @@ Contabilização de pontos finais da rodada e apuração do jogador vencedor (Sh
 Strategy e Facade (Fachada)
 ```
 
-**Justificativa Técnica (caso o forms peça texto explicativo):**
+**Justificativa Técnica:**
 > 1. **Padrão Fachada (Facade):** O acesso a todo o subsistema de domínio (`JogadorService`, `PartidaService`, `BaralhoService` e avaliadores) foi centralizado na interface `PokerFacade`, desacoplando o controller web da complexidade interna do negócio.
 > 2. **Padrão Strategy:** A contabilização dos pontos da rodada e a escolha do vencedor foram desacopladas através da interface `AvaliadorMaoStrategy`. Isso permite injetar dinamicamente diferentes estratégias de avaliação (`RegraPokerStrategy`, `CartaAltaStrategy`, `ParesStrategy`, `AgrupamentosStrategy`, `SequenciaEFlushStrategy`), possibilitando testar e pontuar de forma isolada e extensível cada uma das combinações possíveis de jogo sem violar o princípio Open/Closed (OCP).
 
@@ -48,7 +45,7 @@ Strategy e Facade (Fachada)
 
 ### 6. Commit da Implementação do Projeto:
 
-Você pode fornecer o hash do commit ou o link direto no GitHub:
+Hashes e referências diretas no GitHub:
 
 - **Hash do Commit (Strategy - Apuração e Pontuação):**
   ```text
